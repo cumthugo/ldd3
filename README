@@ -1,4 +1,7 @@
 
+Tasks:
+1. porting to linux 3.13 is on going, started at 20151114
+
 ldd3: Linux Device Drivers 3 examples updated to work with recent kernels
 
 About
