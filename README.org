@@ -1,0 +1,55 @@
+#+TITLE: 源码说明
+#+DATE: 2015-12-17
+
+* Tasks
+
+** Working Porting to linux kernel 3.13
+
+* Source Code说明
+
+** 驱动说明
+
+*** scull0 to scull3
+
+    每个包含一段内存区域，这段内存是全局的，且是可持久的。 
+
+*** scullpipe0 to scullpipe3
+
+    FIFO(First In First Out)设备，像管道一样工作。 
+
+*** scullsingle, scullpriv, sculluid, scullwuid
+
+    - scullsingle  每次只允许一个进程访问该设备
+    - scullpriv   对每个虚拟终端，都是私有的。
+    - sculluid, scullwuid  可被打开多次， 但一次只能由一个用户打开
+
+*** scull device的数据结构示意图
+
+    [[./images/layout_of_a_scull_device.png]]
+
+*** 数据结构定义
+
+    #+BEGIN_SRC c
+
+      /*
+       ,* Representation of scull quantum sets.
+       ,*/
+      struct scull_qset {
+              void **data;
+              struct scull_qset *next;
+      };
+
+      struct scull_dev {
+              struct scull_qset *data;  /* Pointer to first quantum set */
+              int quantum;              /* the current quantum size */
+              int qset;                 /* the current array size */
+              unsigned long size;       /* amount of data stored here */
+              unsigned int access_key;  /* used by sculluid and scullpriv */
+              struct semaphore sem;     /* mutual exclusion semaphore     */
+              struct cdev cdev;         /* Char device structure              */
+      };
+    #+END_SRC
+
+** 引用
+
+   [[README.old][README]]

@@ -61,6 +61,7 @@ static struct clientdata {
 	char *buf;
 	unsigned long jiffies;
 	long delay;
+	struct seq_file *m;
 } jiq_data;
 
 #define SCHEDULER_QUEUE ((task_queue *) 1)
@@ -79,6 +80,7 @@ static int jiq_print(void *ptr)
 	struct clientdata *data = ptr;
 	int len = data->len;
 	char *buf = data->buf;
+	struct seq_file *m = data->m;
 	unsigned long j = jiffies;
 
 	if (len > LIMIT) { 
@@ -97,9 +99,12 @@ static int jiq_print(void *ptr)
 			preempt_count(), current->pid, smp_processor_id(),
 			current->comm);
 
+	seq_printf(m, "%s", data->buf);
+
 	data->len += len;
 	data->buf += len;
 	data->jiffies = j;
+
 	return 1;
 }
 
@@ -127,7 +132,7 @@ static void jiq_print_wq_delayed(struct work_struct *work)
 	schedule_delayed_work(&jiq_data.jiq_delayed_work, data->delay);       
 }
 
-
+#if 0
 static int jiq_read_wq(char *buf, char **start, off_t offset,
                    int len, int *eof, void *data)
 {
@@ -146,7 +151,25 @@ static int jiq_read_wq(char *buf, char **start, off_t offset,
 	*eof = 1;
 	return jiq_data.len;
 }
+#endif
 
+static int jiqwq_proc_show(struct seq_file *m, void *arg)
+{
+	DEFINE_WAIT(wait);
+	
+	jiq_data.len = 0;                /* nothing printed, yet */
+	jiq_data.buf = (char*)arg;              /* print in this place */
+	jiq_data.jiffies = jiffies;      /* initial time */
+	jiq_data.delay = 0;
+	jiq_data.m = m;
+    
+	prepare_to_wait(&jiq_wait, &wait, TASK_INTERRUPTIBLE);
+	schedule_work(&jiq_data.jiq_work);
+	schedule();
+	finish_wait(&jiq_wait, &wait);
+
+	return jiq_data.len;
+}
 
 static int jiq_read_wq_delayed(char *buf, char **start, off_t offset,
                    int len, int *eof, void *data)
@@ -233,6 +256,20 @@ static int jiq_read_run_timer(char *buf, char **start, off_t offset,
 	return jiq_data.len;
 }
 
+#define DEBUG_ENTRY(name)                                      \
+static int name##_proc_open(struct inode *inode, struct file *file)  \
+{\
+	return single_open(file, name##_proc_show, NULL); \
+} \
+\
+static const struct file_operations name##_proc_fops = { \
+	.open		= name##_proc_open, \
+	.read		= seq_read, \
+	.llseek		= seq_lseek, \
+	.release	= single_release, \
+} 
+
+DEBUG_ENTRY(jiqwq);
 
 
 /*
@@ -246,10 +283,11 @@ static int jiq_init(void)
 	INIT_WORK(&jiq_data.jiq_work, jiq_print_wq);
 	INIT_DELAYED_WORK(&jiq_data.jiq_delayed_work, jiq_print_wq_delayed);
 
+	proc_create("jiqwq", 0, NULL, &jiqwq_proc_fops);
 	create_proc_read_entry("jiqwq", 0, NULL, jiq_read_wq, NULL);
-	create_proc_read_entry("jiqwqdelay", 0, NULL, jiq_read_wq_delayed, NULL);
-	create_proc_read_entry("jitimer", 0, NULL, jiq_read_run_timer, NULL);
-	create_proc_read_entry("jiqtasklet", 0, NULL, jiq_read_tasklet, NULL);
+//	create_proc_read_entry("jiqwqdelay", 0, NULL, jiq_read_wq_delayed, NULL);
+//	create_proc_read_entry("jitimer", 0, NULL, jiq_read_run_timer, NULL);
+//	create_proc_read_entry("jiqtasklet", 0, NULL, jiq_read_tasklet, NULL);
 
 	return 0; /* succeed */
 }
