@@ -50,6 +50,79 @@
       };
     #+END_SRC
 
+** 学习笔记
+   
+*** 调试技术
+    
+**** 内核常见的调试项：
+      
+      1. =CONFIG_DEBUG_KERNEL=
+         打开此项后，就可以使其他的一些调试选项可见。
+      2. =CONFIG_DEBUG_SLAB=
+         检测内存越界或是未初始化等错误。
+      3. =CONFIG_DEBUG_PAGEALLOC=
+         当释放时，完整的页会从内核地址空间删除。
+      4. =CONFIG_DEBUG_SPINLOCK=
+         检测对一个未初始化的spinlock的操作。
+      5. =CONFIG_DEBUG_SPINLOCK_SLEEP=
+         检测当拥有一个spinlock时，还试图进入sleep的代码。
+      6. =CONFIG_INIT_DEBUG=
+         检测试图访问__init(或__initdata)标记的代码。
+      7. =CONFIG_DEBUG_INFO=
+         将完整的调试信息统进内核。特别是想使用gdb调试内核时，非常有用。
+      8. =CONFIG_MAGIC_SYSRQ=
+         启用"magic SysRq"键。
+      9. =CONFIG_DEBUG_STACKOVERFLOW=
+      10. =CONFIG_DEBUG_STACK_USAGE=
+          有助于跟踪内核栈溢出的问题。
+      11. =CONFIG_KALLSYMS=
+          将内核符号信息编译进内核。发生oops时，打印调用栈时可以看到函
+          数符号信息，而不是一些十六进制的数字。
+      12. =CONFIG_IKCONFIG=
+      13. =CONFIG_IKCONFIG_PROC=
+          打开后，会将完整的内核配置状态编进内核，这样可以通过/proc/目
+          录下的一些文件查看。
+      14. =CONFIG_ACPI_DEBUG=
+          ACPI调试信息。
+      15. =CONFIG_DEBUG_DRIVER=
+          打开驱动核心代码的日志输出。
+      16. =CONFIG_SCSI_CONSTANTS=
+          SCSI驱动调试时使用。
+      17. =CONFIG_INPUT_EVBUG=
+          打开输入事件的一些输出。调试输入设备驱动时使用
+      18. =CONFIG_PROFILING=
+          性能调优或跟踪内核Hang住等相关问题。
+
+**** prink
+
+     /printk/ 函数将消息发送到一个环形Buffer： __LOG_BUF_LEN字节长，大
+     小从4 KB到1 MB大小。可以通过syslog或读取/proc/kmsg来获取该buffer
+     中的信息。其中，读取/proc/kmsg的方式会消耗掉buffer中的数据。
+
+**** rate limit
+
+     有时，同一个Log信息打印太多，会影响Log分析，可以通过
+     printk_ratelimit()来控制一条Log的打印次数。 使用方法一般如下所示：
+
+     #+BEGIN_SRC c
+       if (printk_ratelimit( ))
+         printk(KERN_NOTICE "The printer is still on fire\n");
+     #+END_SRC
+
+     可以通过如下两种方法修改 =printk_ratelimit()= 的行为：
+     1. 修改"/proc/sys/kernel/printk_ratelimit"  重新enable消息打印前，
+        等待的时间。
+     2. "/proc/sys/kernel/printk_ratelimit_burst": 在启用rate_limit前，
+        允许同一份Log打印的次数。
+
+**** 打印设备号
+
+     #+BEGIN_SRC c
+       int print_dev_t(char *buffer, dev_t dev);
+       char *format_dev_t(char *buffer, dev_t dev);
+     #+END_SRC
+
+
 ** 引用
 
    [[README.old][README]]
