@@ -23,10 +23,12 @@
 #include <linux/fs.h>     /* everything... */
 #include <linux/types.h>  /* size_t */
 #include <linux/completion.h>
+#include <linux/cdev.h>
 
 MODULE_LICENSE("Dual BSD/GPL");
 
 static int complete_major = 0;
+static struct cdev *complete_dev = NULL;
 
 DECLARE_COMPLETION(comp);
 
@@ -59,21 +61,49 @@ struct file_operations complete_fops = {
 int complete_init(void)
 {
 	int result;
+	dev_t dev = 0;
 
 	/*
 	 * Register your major, and accept a dynamic number
-	 */
-	result = register_chrdev(complete_major, "complete", &complete_fops);
-	if (result < 0)
+	 */ 
+	 if (complete_major) {
+		dev = MKDEV(complete_major, 0);
+		result = register_chrdev_region(dev, 1, "complete");
+	} else {/*dynamic*/
+		result = alloc_chrdev_region(&dev, 0, 1,
+				"complete");
+		complete_major = MAJOR(dev);
+	}
+
+	if (result < 0) {
+		printk(KERN_WARNING "complete: can't get major %d\n", complete_major);
 		return result;
-	if (complete_major == 0)
-		complete_major = result; /* dynamic */
+	}
+
+	complete_dev = cdev_alloc( );
+	if (complete_dev == NULL) {
+		printk(KERN_WARNING "cannot allocate cdev struct\n");
+		unregister_chrdev_region(dev, 1);
+		return -1;
+	}
+
+	complete_dev->ops = &complete_fops;
+	complete_dev->owner = THIS_MODULE;
+	result = cdev_add(complete_dev, dev, 1);
+	if (result) {
+		printk(KERN_WARNING "cannot add complete char device. \n");
+		unregister_chrdev_region(dev, 1);
+		return -2;
+	}
+
 	return 0;
 }
 
 void complete_cleanup(void)
 {
-	unregister_chrdev(complete_major, "complete");
+	dev_t devno = MKDEV(complete_major, 0);
+	cdev_del(complete_dev);
+	unregister_chrdev_region(devno, 1);
 }
 
 module_init(complete_init);
