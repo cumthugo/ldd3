@@ -52,6 +52,12 @@
 
 ** 学习笔记
    
+*** 内核模块
+
+    - [[http://blog.csdn.net/fuyajun01/article/details/7845461][Linux内核模块]]
+    - [[http://blog.csdn.net/fuyajun01/article/details/7901857][Linux-2.6设备模型与sysfs文件系统]]
+    - [[http://blog.csdn.net/fuyajun01/article/details/7901866][udev与devfs文件系统]]
+
 *** 调试技术
     
 **** 内核常见的调试项：
@@ -121,6 +127,88 @@
        int print_dev_t(char *buffer, dev_t dev);
        char *format_dev_t(char *buffer, dev_t dev);
      #+END_SRC
+
+*** 字符设备
+
+     - [[http://blog.csdn.net/fuyajun01/article/details/7845492][字符设备驱动程序框架]]
+     - [[http://blog.csdn.net/fuyajun01/article/details/7901879][Miscellaneous Character Drivers]]
+     - [[http://blog.csdn.net/fuyajun01/article/details/7901881][iotcl函数]]
+     - 常见函数
+       #+BEGIN_SRC c
+         copy_from_user
+         __copy_from_user //(no access check)
+         copy_to_user
+         __copy_to_user
+
+         //传输小数据如1,2, 4, 8字节的数据
+         __put_user()
+           put_user()
+           __get_user()
+           get_user()
+
+         //能力函数
+         #include <linux/sched.h>
+         int capable(int capability);
+       #+END_SRC
+       
+*** 同步与竞态
+
+    - [[http://blog.csdn.net/fuyajun01/article/details/7313560][内核同步机制——完成量]]
+    - [[http://blog.csdn.net/fuyajun01/article/details/7313551][内核同步机制——互斥量]]
+    - [[http://blog.csdn.net/fuyajun01/article/details/7251060][内核同步机制——信号量]]
+    - [[http://blog.csdn.net/fuyajun01/article/details/7249772][内核同步机制——自旋锁]]
+    - [[http://blog.csdn.net/fuyajun01/article/details/6926750][内核同步机制——原子操作]]
+
+*** 休眠与唤醒
+
+     - =基本调用步骤:=
+       1) 初始化一个等待队列头：
+
+          init_waitqueue_head(&ret->wait_queue);
+
+          注： 判断队列是否为空： waitqueue_active(...)， 返回false即表示队列为空.
+
+       2) 等待某个条件发生：
+
+           wait_event(...) 或 wait_event_timeout(...)
+
+       3) 唤醒队列
+
+           wake_up_all(...)
+
+     - =手动睡眠=
+       1) 初始化一个等待队列项
+
+          #+BEGIN_SRC c
+          DEFINE_WAIT(my_wait);
+          #+END_SRC
+
+          或者
+          
+          #+BEGIN_SRC c
+          wait_queue_t my_wait;
+          init_wait(&my_wait);          
+          #+END_SRC
+
+       2) 将等待队列项加入到队列中
+
+          #+BEGIN_SRC c
+            void prepare_to_wait(wait_queue_head_t *queue,
+                                 wait_queue_t *wait,
+                                 int state);
+          #+END_SRC
+
+       3) 调用prepare_to_wait后，可以调用schedule()
+
+       4) 当schedule返回，执行清理工作。
+
+          #+BEGIN_SRC c
+            void finish_wait(wait_queue_head_t *queue, wait_queue_t *wait);
+          #+END_SRC
+
+
+
+     - [[http://blog.csdn.net/fuyajun01/article/details/7408853][等待队列——休眠与唤醒]]
 
 
 ** 引用

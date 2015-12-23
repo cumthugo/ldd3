@@ -28,6 +28,7 @@
 #include <linux/cdev.h>
 #include <asm/uaccess.h>
 #include <linux/sched.h>
+#include <linux/seq_file.h>
 
 #include "scull.h"		/* local definitions */
 
@@ -260,48 +261,41 @@ static int scull_p_fasync(int fd, struct file *filp, int mode)
 
 
 
-/* FIXME this should use seq_file */
-#ifdef SCULL_DEBUG
-static void scullp_proc_offset(char *buf, char **start, off_t *offset, int *len)
+#ifdef SCULL_DEBUG /* use proc only if debugging */
+
+ static int scullpipe_proc_show(struct seq_file *s, void *v)
 {
-	if (*offset == 0)
-		return;
-	if (*offset >= *len) {	/* Not there yet */
-		*offset -= *len;
-		*len = 0;
-	}
-	else {			/* We're into the interesting stuff now */
-		*start = buf + *offset;
-		*offset = 0;
-	}
-}
-
-
-static int scull_read_p_mem(char *buf, char **start, off_t offset, int count,
-		int *eof, void *data)
-{
-	int i, len;
-	struct scull_pipe *p;
-
+		 int i, len = 0;
+		 struct scull_pipe *p;
+	 
 #define LIMIT (PAGE_SIZE-200)	/* don't print any more after this size */
-	*start = buf;
-	len = sprintf(buf, "Default buffersize is %i\n", scull_p_buffer);
-	for(i = 0; i<scull_p_nr_devs && len <= LIMIT; i++) {
-		p = &scull_p_devices[i];
-		if (down_interruptible(&p->sem))
-			return -ERESTARTSYS;
-		len += sprintf(buf+len, "\nDevice %i: %p\n", i, p);
-/*		len += sprintf(buf+len, "   Queues: %p %p\n", p->inq, p->outq);*/
-		len += sprintf(buf+len, "   Buffer: %p to %p (%i bytes)\n", p->buffer, p->end, p->buffersize);
-		len += sprintf(buf+len, "   rp %p   wp %p\n", p->rp, p->wp);
-		len += sprintf(buf+len, "   readers %i   writers %i\n", p->nreaders, p->nwriters);
-		up(&p->sem);
-		scullp_proc_offset(buf, start, &offset, &len);
-	}
-	*eof = (len <= LIMIT);
-	return len;
+		 seq_printf(s,  "Default buffersize is %i\n", scull_p_buffer);
+		 for(i = 0; i<scull_p_nr_devs && len <= LIMIT; i++) {
+			 p = &scull_p_devices[i];
+			 if (down_interruptible(&p->sem))
+				 return -ERESTARTSYS;
+			 seq_printf(s, "\nDevice %i: %p\n", i, p);
+	 /* 	  seq_printf(s, "	 Queues: %p %p\n", p->inq, p->outq);*/
+			 seq_printf(s,  "	 Buffer: %p to %p (%i bytes)\n", p->buffer, p->end, p->buffersize);
+			 seq_printf(s, "	 rp %p	 wp %p\n", p->rp, p->wp);
+			 seq_printf(s,  "	 readers %i   writers %i\n", p->nreaders, p->nwriters);
+			 up(&p->sem);
+			 len += s->count;
+		 }
+	return 0;
 }
 
+static int scullpipe_proc_open(struct inode *inode, struct file *file)  
+{
+	return single_open(file, scullpipe_proc_show, NULL); 
+} 
+
+static const struct file_operations scullpipe_proc_fops = { 
+	.open		= scullpipe_proc_open, 
+	.read		= seq_read, 
+	.llseek		= seq_lseek, 
+	.release	= single_release, 
+}; 
 
 #endif
 
@@ -367,6 +361,8 @@ int scull_p_init(dev_t firstdev)
 		scull_p_setup_cdev(scull_p_devices + i, i);
 	}
 #ifdef SCULL_DEBUG
+	proc_create("scullpipe", 0, NULL, &scullpipe_proc_fops);
+
 //	create_proc_read_entry("scullpipe", 0, NULL, scull_read_p_mem, NULL);
 #endif
 	return scull_p_nr_devs;
