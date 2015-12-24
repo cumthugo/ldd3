@@ -210,6 +210,175 @@
 
      - [[http://blog.csdn.net/fuyajun01/article/details/7408853][等待队列——休眠与唤醒]]
 
+*** 计时器与延时
+    
+    - [[http://blog.csdn.net/fuyajun01/article/details/7694538][内核变量——Jiffies]]
+      jiffies与struct timeval, struct timespec之间的转换：
+      #+BEGIN_SRC c
+        #include <linux/time.h>
+        unsigned long timespec_to_jiffies(struct timespec *value);
+        void jiffies_to_timespec(unsigned long jiffies, struct timespec *value);
+        unsigned long timeval_to_jiffies(struct timeval *value);
+        void jiffies_to_timeval(unsigned long jiffies, struct timeval *value);
+      #+END_SRC
+
+      读取64-bit的jiffies值：
+      #+BEGIN_SRC c
+        #include <linux/jiffies.h>
+        u64 get_jiffies_64(void);
+      #+END_SRC
+    
+      turn a wall-clock time into a jiffies value:
+      #+BEGIN_SRC c
+        #include <linux/time.h>
+        unsigned long mktime (unsigned int year, unsigned int mon,
+                              unsigned int day, unsigned int hour,
+                              unsigned int min, unsigned int sec);
+      #+END_SRC
+
+      获取绝对时间：
+      #+BEGIN_SRC c
+        #include <linux/time.h>
+        void do_gettimeofday(struct timeval *tv);
+
+        //获取当前时间
+        #include <linux/time.h>
+        struct timespec current_kernel_time(void);
+      #+END_SRC
+
+    - 延迟运行
+
+      1) Busy Waiting
+
+         The HZ symbol specifies the number of clock ticks generated per second.
+
+         #+BEGIN_SRC c
+           while (time_before(jiffies, j1))
+             cpu_relax( );
+         #+END_SRC
+
+      2) schedule
+
+         #+BEGIN_SRC c
+           while (time_before(jiffies, j1)) {
+             schedule( );
+           }
+         #+END_SRC
+
+      3) Timeouts
+
+         #+BEGIN_SRC c
+           #include <linux/wait.h>
+           long wait_event_timeout(wait_queue_head_t q, condition, long timeout);
+           long wait_event_interruptible_timeout(wait_queue_head_t q,
+                                                 condition, long timeout);
+
+           #include <linux/sched.h>
+           signed long schedule_timeout(signed long timeout);
+           set_current_state(TASK_INTERRUPTIBLE);
+           schedule_timeout (delay);
+         #+END_SRC
+
+      4) 短延时
+
+         #+BEGIN_SRC c
+           //busy waiting
+           #include <linux/delay.h>
+           void ndelay(unsigned long nsecs);
+           void udelay(unsigned long usecs);
+           void mdelay(unsigned long msecs);
+
+           //no busy waiting
+           void msleep(unsigned int millisecs);
+           unsigned long msleep_interruptible(unsigned int millisecs);
+           void ssleep(unsigned int seconds)
+         #+END_SRC
+
+      5) [[http://blog.csdn.net/fuyajun01/article/details/7694557][内核定时器与延时]]
+
+         #+BEGIN_SRC c
+           #include <linux/timer.h>
+           struct timer_list {
+           /* ... */
+           unsigned long expires;
+           void (*function)(unsigned long);
+             unsigned long data;
+           };
+           void init_timer(struct timer_list *timer);
+           struct timer_list TIMER_INITIALIZER(_function, _expires, _data);
+           void add_timer(struct timer_list * timer);
+           int del_timer(struct timer_list * timer);
+           int mod_timer(struct timer_list *timer, unsigned long expires);//update timer
+           //Works like del_timer, but also guarantees that when it returns, the timer
+           //function is not running on any CPU.
+           int del_timer_sync(struct timer_list *timer);
+           /*
+             Returns true or false to indicate whether the timer is currently scheduled to run
+           by reading one of the opaque fields of the structure.
+           ,*/
+           int timer_pending(const struct timer_list * timer);
+         #+END_SRC
+
+      6) [[http://blog.csdn.net/fuyajun01/article/details/7524288][下半部机制之微线程]]
+
+         数据结构：
+         #+BEGIN_SRC c
+           #include <linux/interrupt.h>
+           struct tasklet_struct {
+             /* ... */
+             void (*func)(unsigned long);
+             unsigned long data;
+           };
+           void tasklet_init(struct tasklet_struct *t,
+           void (*func)(unsigned long), unsigned long data);
+           DECLARE_TASKLET(name, func, data);
+           DECLARE_TASKLET_DISABLED(name, func, data);
+         #+END_SRC
+
+      7) [[http://blog.csdn.net/fuyajun01/article/details/7544332][下半部机制之工作队列]]
+
+         #+BEGIN_SRC c
+           struct workqueue_struct *create_workqueue(const char *name);//为每个CPU创建一个内核线程
+           struct workqueue_struct *create_singlethread_workqueue(const char *name);//只创建一个内核线程
+
+           // work_struct
+           DECLARE_WORK(name, void (*function)(void *), void *data);
+           INIT_WORK(struct work_struct *work, void (*function)(void *), void *data);
+           PREPARE_WORK(struct work_struct *work, void (*function)(void *), void *data); //修改work_struct
+
+           //submit work
+           int queue_work(struct workqueue_struct *queue, struct work_struct *work);
+           int queue_delayed_work(struct workqueue_struct *queue,
+                                  struct work_struct *work, unsigned long delay);
+           //cancel pending workqueue entry
+           int cancel_delayed_work(struct work_struct *work);
+
+           //make sure the work function is not running
+           //anywhere in the system after cancel_delayed_work returns 0
+           void flush_workqueue(struct workqueue_struct *queue);
+
+           //get rid of a workqueue
+           void destroy_workqueue(struct workqueue_struct *queue);
+         #+END_SRC
+
+      8) 共享工作队列
+
+         大部分情况下，我们不需要创建自己的工作队列，可以将工作项提交
+         到默认的工作队列中。
+         #+BEGIN_SRC c
+           int schedule_work(struct work_struct *work);
+
+           //submit work
+           int schedule_delayed_work(struct work_struct *work, unsigned long delay);
+
+           //cancel delayed work
+           int cancel_delayed_work(struct work_struct *work);
+
+           //flush the shared workqueue
+           void flush_scheduled_work(void);
+         #+END_SRC
+
+
 
 ** 引用
 
