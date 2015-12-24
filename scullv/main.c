@@ -28,6 +28,7 @@
 #include <linux/aio.h>
 #include <asm/uaccess.h>
 #include <linux/vmalloc.h>
+#include <linux/seq_file.h>
 #include "scullv.h"		/* local definitions */
 
 
@@ -58,60 +59,82 @@ void scullv_cleanup(void);
  * The proc filesystem: function to read and entry
  */
 
-void scullv_proc_offset(char *buf, char **start, off_t *offset, int *len)
+/*
+ * Here are our sequence iteration methods.  Our "position" is
+ * simply the device number.
+ */
+static void *scullv_seq_start(struct seq_file *s, loff_t *pos)
 {
-	if (*offset == 0)
-		return;
-	if (*offset >= *len) {
-		/* Not there yet */
-		*offset -= *len;
-		*len = 0;
-	} else {
-		/* We're into the interesting stuff now */
-		*start = buf + *offset;
-		*offset = 0;
-	}
+	if (*pos >= scullv_devs)
+		return NULL;   /* No more to read */
+	return scullv_devices + *pos;
 }
 
-/* FIXME: Do we need this here??  It be ugly  */
-int scullv_read_procmem(char *buf, char **start, off_t offset,
-                   int count, int *eof, void *data)
+static void *scullv_seq_next(struct seq_file *s, void *v, loff_t *pos)
 {
-	int i, j, order, qset, len = 0;
-	int limit = count - 80; /* Don't print more than this */
-	struct scullv_dev *d;
-
-	*start = buf;
-	for(i = 0; i < scullv_devs; i++) {
-		d = &scullv_devices[i];
-		if (down_interruptible (&d->sem))
-			return -ERESTARTSYS;
-		qset = d->qset;  /* retrieve the features of each device */
-		order = d->order;
-		len += sprintf(buf+len,"\nDevice %i: qset %i, order %i, sz %li\n",
-				i, qset, order, (long)(d->size));
-		for (; d; d = d->next) { /* scan the list */
-			len += sprintf(buf+len,"  item at %p, qset at %p\n",d,d->data);
-			scullv_proc_offset (buf, start, &offset, &len);
-			if (len > limit)
-				goto out;
-			if (d->data && !d->next) /* dump only the last item - save space */
-				for (j = 0; j < qset; j++) {
-					if (d->data[j])
-						len += sprintf(buf+len,"    % 4i:%8p\n",j,d->data[j]);
-					scullv_proc_offset (buf, start, &offset, &len);
-					if (len > limit)
-						goto out;
-				}
-		}
-	  out:
-		up (&scullv_devices[i].sem);
-		if (len > limit)
-			break;
-	}
-	*eof = 1;
-	return len;
+	(*pos)++;
+	if (*pos >= scullv_devs)
+		return NULL;
+	return scullv_devices + *pos;
 }
+
+static void scullv_seq_stop(struct seq_file *s, void *v)
+{
+	/* Actually, there's nothing to do here */
+}
+
+static int scullv_seq_show(struct seq_file *s, void *v)
+{
+	struct scullv_dev *dev = (struct scullv_dev *) v;
+	struct scullv_dev *d = dev;
+	int j;
+
+	if (down_interruptible(&dev->sem))
+		return -ERESTARTSYS;
+	seq_printf(s, "\nDevice %i: qset %i, order %i,  sz %li\n",
+			(int) (dev - scullv_devices), dev->qset, d->order, (long)dev->size);
+	for (; d; d = d->next) { /* scan the list */
+		seq_printf(s,"  item at %p, qset at %p\n",d,d->data);
+		if (d->data && !d->next) /* dump only the last item - save space */
+			for (j = 0; j < dev->qset; j++) {
+				if (d->data[j])
+					seq_printf(s,"	% 4i:%8p\n",j,d->data[j]);
+			}
+	}
+	up(&dev->sem);
+	return 0;
+}
+	
+/*
+ * Tie the sequence operators up.
+ */
+static struct seq_operations scullv_seq_ops = {
+	.start = scullv_seq_start,
+	.next  = scullv_seq_next,
+	.stop  = scullv_seq_stop,
+	.show  = scullv_seq_show
+};
+
+/*
+ * Now to implement the /proc file we need only make an open
+ * method which sets up the sequence operators.
+ */
+static int scullv_proc_open(struct inode *inode, struct file *file)
+{
+	return seq_open(file, &scullv_seq_ops);
+}
+
+/*
+ * Create a set of file operations for our proc file.
+ */
+static struct file_operations scullv_proc_ops = {
+	.owner   = THIS_MODULE,
+	.open    = scullv_proc_open,
+	.read    = seq_read,
+	.llseek  = seq_lseek,
+	.release = seq_release
+};
+
 
 #endif /* SCULLV_USE_PROC */
 
@@ -572,7 +595,7 @@ int scullv_init(void)
 
 
 #ifdef SCULLV_USE_PROC /* only when available */
-	create_proc_read_entry("scullvmem", 0, NULL, scullv_read_procmem, NULL);
+	proc_create("scullvmem", 0, NULL, &scullv_proc_ops);
 #endif
 	return 0; /* succeed */
 

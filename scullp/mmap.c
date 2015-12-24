@@ -112,7 +112,9 @@ int scullp_mmap(struct file *filp, struct vm_area_struct *vma)
 
 	/* don't do anything here: "nopage" will set up page table entries */
 	vma->vm_ops = &scullp_vm_ops;
-	vma->vm_flags |= VM_RESERVED;
+	//vma->vm_flags |= VM_RESERVED; this flag is no longer exist after kernel 3.7
+	vma->vm_flags |= VM_DONTDUMP;
+	vma->vm_flags |= VM_DONTEXPAND;
 	vma->vm_private_data = filp->private_data;
 	scullp_vma_open(vma);
 	return 0;

@@ -378,6 +378,11 @@
            void flush_scheduled_work(void);
          #+END_SRC
 
+*** 内存分配
+    
+    - [[http://blog.csdn.net/fuyajun01/article/details/7694571][内存管理]]
+    - [[http://blog.csdn.net/fuyajun01/article/details/6919032][内核中的几种内存分配器]]
+    - [[http://blog.csdn.net/fuyajun01/article/details/7694580][每-CPU变量]]
 
 
 ** 引用
