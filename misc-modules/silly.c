@@ -33,11 +33,13 @@
 #include <linux/mm.h>
 #include <linux/ioport.h>
 #include <linux/poll.h>
+#include <linux/cdev.h>
 
 #include <asm/io.h>
 #include <asm/uaccess.h>
 
 int silly_major = 0;
+static struct cdev silly_dev;
 module_param(silly_major, int, 0);
 MODULE_AUTHOR("Alessandro Rubini");
 MODULE_LICENSE("Dual BSD/GPL");
@@ -267,13 +269,32 @@ struct file_operations silly_fops = {
 
 int silly_init(void)
 {
-	int result = register_chrdev(silly_major, "silly", &silly_fops);
+	int result;
+	dev_t dev = MKDEV(silly_major, 0);
+
+	/* Figure out our device number. */
+	if (silly_major)
+		result = register_chrdev_region(dev, 4, "silly");
+	else {
+		result = alloc_chrdev_region(&dev, 0, 4, "silly");
+		silly_major = MAJOR(dev);
+	}
 	if (result < 0) {
-		printk(KERN_INFO "silly: can't get major number\n");
+		printk(KERN_WARNING "short: unable to get silly_major %d\n", silly_major);
 		return result;
 	}
-	if (silly_major == 0)
-		silly_major = result; /* dynamic */
+
+	/* Here we register our device - should not fail thereafter */
+	cdev_init(&silly_dev, &silly_fops);
+	silly_dev.owner = THIS_MODULE;
+	result = cdev_add (&silly_dev, dev, 1);
+	/* Fail gracefully if need be */
+	if (result) {
+		printk (KERN_NOTICE "Error %d adding short0", result);
+		cdev_del(&silly_dev);
+		unregister_chrdev_region(MKDEV(silly_major, 0), 1);
+		return result;
+	}
 	/*
 	 * Set up our I/O range.
 	 */
@@ -286,7 +307,9 @@ int silly_init(void)
 void silly_cleanup(void)
 {
 	iounmap(io_base);
-	unregister_chrdev(silly_major, "silly");
+	cdev_del(&silly_dev);
+	unregister_chrdev_region(MKDEV(silly_major, 0), 1);
+
 }
 
 

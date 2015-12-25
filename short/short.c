@@ -38,17 +38,21 @@
 #include <linux/workqueue.h>
 #include <linux/poll.h>
 #include <linux/wait.h>
+#include <linux/cdev.h>
+#include <linux/kdev_t.h>
+
 
 #include <asm/io.h>
 
 #define SHORT_NR_PORTS	8	/* use 8 ports by default */
+static struct cdev short_dev;
 
 /*
  * all of the parameters have no "short_" prefix, to save typing when
  * specifying them at load time
  */
-static int major = 0;	/* dynamic by default */
-module_param(major, int, 0);
+static int short_major = 0;	/* dynamic by default */
+module_param(short_major, int, 0);
 
 static int use_mem = 0;	/* default is I/O-mapped */
 module_param(use_mem, int, 0);
@@ -138,6 +142,7 @@ ssize_t do_short_read (struct inode *inode, struct file *filp, char __user *buf,
 	void *address = (void *) short_base + (minor&0x0f);
 	int mode = (minor&0x70) >> 4;
 	unsigned char *kbuf = kmalloc(count, GFP_KERNEL), *ptr;
+
     
 	if (!kbuf)
 		return -ENOMEM;
@@ -462,6 +467,7 @@ irqreturn_t short_sh_interrupt(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
+//Kernel-assisted probing
 void short_kernelprobe(void)
 {
 	int count = 0;
@@ -540,13 +546,24 @@ void short_selfprobe(void)
 		printk("short: probe failed %i times, giving up\n", count);
 }
 
-
-
 /* Finally, init and cleanup */
 
 int short_init(void)
 {
 	int result;
+	dev_t dev = MKDEV(short_major, 0);
+
+	/* Figure out our device number. */
+	if (short_major)
+		result = register_chrdev_region(dev, 1, "short");
+	else {
+		result = alloc_chrdev_region(&dev, 0, 1, "short");
+		short_major = MAJOR(dev);
+	}
+	if (result < 0) {
+		printk(KERN_WARNING "short: unable to get short_major %d\n", short_major);
+		return result;
+	}
 
 	/*
 	 * first, sort out the base/short_base ambiguity: we'd better
@@ -561,6 +578,7 @@ int short_init(void)
 		if (! request_region(short_base, SHORT_NR_PORTS, "short")) {
 			printk(KERN_INFO "short: can't get I/O port address 0x%lx\n",
 					short_base);
+		unregister_chrdev_region(MKDEV(short_major, 0), 1);
 			return -ENODEV;
 		}
 
@@ -568,6 +586,7 @@ int short_init(void)
 		if (! request_mem_region(short_base, SHORT_NR_PORTS, "short")) {
 			printk(KERN_INFO "short: can't get I/O mem address 0x%lx\n",
 					short_base);
+			unregister_chrdev_region(MKDEV(short_major, 0), 1);
 			return -ENODEV;
 		}
 
@@ -576,13 +595,17 @@ int short_init(void)
 		/* Hmm... we should check the return value */
 	}
 	/* Here we register our device - should not fail thereafter */
-	result = register_chrdev(major, "short", &short_fops);
-	if (result < 0) {
-		printk(KERN_INFO "short: can't get major number\n");
+	cdev_init(&short_dev, &short_fops);
+	short_dev.owner = THIS_MODULE;
+	result = cdev_add (&short_dev, dev, 1);
+	/* Fail gracefully if need be */
+	if (result) {
+		printk (KERN_NOTICE "Error %d adding short0", result);
+		cdev_del(&short_dev);
+		unregister_chrdev_region(MKDEV(short_major, 0), 1);
 		release_region(short_base,SHORT_NR_PORTS);  /* FIXME - use-mem case? */
 		return result;
 	}
-	if (major == 0) major = result; /* dynamic */
 
 	short_buffer = __get_free_pages(GFP_KERNEL,0); /* never fails */  /* FIXME */
 	short_head = short_tail = short_buffer;
@@ -677,7 +700,8 @@ void short_cleanup(void)
 		tasklet_disable(&short_tasklet);
 	else
 		flush_scheduled_work();
-	unregister_chrdev(major, "short");
+	cdev_del(&short_dev);
+	unregister_chrdev_region(MKDEV(short_major, 0), 1);
 	if (use_mem) {
 		iounmap((void __iomem *)short_base);
 		release_mem_region(short_base, SHORT_NR_PORTS);

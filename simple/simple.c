@@ -211,8 +211,6 @@ static int simple_init(void)
 		printk(KERN_WARNING "simple: unable to get major %d\n", simple_major);
 		return result;
 	}
-	if (simple_major == 0)
-		simple_major = result;
 
 	/* Now set up two cdevs. */
 	simple_setup_cdev(SimpleDevs, 0, &simple_remap_ops);

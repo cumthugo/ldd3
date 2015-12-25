@@ -384,6 +384,26 @@
     - [[http://blog.csdn.net/fuyajun01/article/details/6919032][内核中的几种内存分配器]]
     - [[http://blog.csdn.net/fuyajun01/article/details/7694580][每-CPU变量]]
 
+*** 与硬件通信
+
+    - [[http://blog.csdn.net/fuyajun01/article/details/19634277][I/O端口和I/O内存]]
+
+*** [[http://blog.csdn.net/fuyajun01/article/details/7422249][内核中断处理]]
+
+    - [[http://blog.csdn.net/fuyajun01/article/details/7434194][内核中断下半部机制]]
+    - [[http://blog.csdn.net/fuyajun01/article/details/7544332][下半部机制之工作队列]]
+    - [[http://blog.csdn.net/fuyajun01/article/details/7524304][内核线程ksoftirqd]]
+    - [[http://blog.csdn.net/fuyajun01/article/details/7524288][下半部机制之微线程]]
+    - [[http://blog.csdn.net/fuyajun01/article/details/7463625][下半部机制之软中断]]
+
+*** 内核数据结构
+
+    - [[http://blog.csdn.net/fuyajun01/article/details/7413595][内核数据结构之红黑树]]
+    - [[http://blog.csdn.net/fuyajun01/article/details/7413584][内核数据结构之映射]]
+    - [[http://blog.csdn.net/fuyajun01/article/details/7413579][内核数据结构之队列]]
+    - [[http://blog.csdn.net/fuyajun01/article/details/6727022][内核数据结构之链表]]
+    - [[http://blog.csdn.net/fuyajun01/article/details/6575871][内核错误码处理宏]]
+
 
 ** 引用
 
