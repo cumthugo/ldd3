@@ -276,7 +276,7 @@ void snull_rx(struct net_device *dev, struct snull_packet *pkt)
 	skb->ip_summed = CHECKSUM_UNNECESSARY; /* don't check it */
 	priv->stats.rx_packets++;
 	priv->stats.rx_bytes += pkt->datalen;
-	netif_rx(skb);
+	netif_rx(skb);//hand off the socket buffer to the upper layers.
   out:
 	return;
 }
@@ -284,6 +284,8 @@ void snull_rx(struct net_device *dev, struct snull_packet *pkt)
 
 /*
  * The poll implementation.
+ * @param buget the maximum number of packets that 
+ *    we are allowed to pass into kernel.
  */
 static int snull_poll(struct napi_struct *napi, int budget)
 {
@@ -308,7 +310,7 @@ static int snull_poll(struct napi_struct *napi, int budget)
 		skb->dev = dev;
 		skb->protocol = eth_type_trans(skb, dev);
 		skb->ip_summed = CHECKSUM_UNNECESSARY; /* don't check it */
-		netif_receive_skb(skb);
+		netif_receive_skb(skb); //feed packets to the kernel
 		
         	/* Maintain stats */
 		npackets++;
@@ -318,7 +320,7 @@ static int snull_poll(struct napi_struct *napi, int budget)
 	}
 	/* If we processed all packets, we're done; tell the kernel and reenable ints */
 	if (! priv->rx_queue) {
-		napi_complete(napi);
+		napi_complete(napi); //obsolete: netif_rx_complete(dev);
 		snull_rx_ints(dev, 1);
 		return 0;
 	}
@@ -403,7 +405,7 @@ static void snull_napi_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	priv->status = 0;
 	if (statusword & SNULL_RX_INTR) {
 		snull_rx_ints(dev, 0);  /* Disable further interrupts */
-		napi_schedule(&priv->napi);
+		napi_schedule(&priv->napi);//obsolete: netif_rx_schedule(dev);
 	}
 	if (statusword & SNULL_TX_INTR) {
         	/* a transmission is over: free the skb */
@@ -663,8 +665,8 @@ void snull_init(struct net_device *dev)
 	dev->netdev_ops = &snull_netdev_ops;
 	dev->header_ops = &snull_header_ops;
 	/* keep the default flags, just add NOARP */
-	dev->flags           |= IFF_NOARP;
-	dev->features        |= NETIF_F_HW_CSUM;
+	dev->flags           |= IFF_NOARP; //withou ARP capabilities
+	dev->features        |= NETIF_F_HW_CSUM;//hardware does checksumming itself
 
 	/*
 	 * Then, initialize the priv field. This encloses the statistics

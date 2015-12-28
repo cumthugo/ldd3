@@ -1,9 +1,8 @@
 #+TITLE: 源码说明
 #+DATE: 2015-12-17
 
-* Tasks
-
-** Working Porting to linux kernel 3.13
+* Tasks [0/1]
+  - [ ] Working Porting to linux kernel 3.13
 
 * Source Code说明
 
@@ -403,6 +402,88 @@
     - [[http://blog.csdn.net/fuyajun01/article/details/7413579][内核数据结构之队列]]
     - [[http://blog.csdn.net/fuyajun01/article/details/6727022][内核数据结构之链表]]
     - [[http://blog.csdn.net/fuyajun01/article/details/6575871][内核错误码处理宏]]
+
+*** 网络驱动
+    
+**** snull驱动设计说明
+
+    - it simulates conversations with real remote hosts in order to
+      better demonstrate the task of writing a network driver.
+    - it supports only IP traffic.
+    - The /snull/ module creates two interfaces.
+    - How a host sees its interfaces
+
+      [[./images/snull.png]]
+    - possible configuration
+      
+      /etc/networks
+      | network   |          ip |
+      |-----------+-------------|
+      | snullnet0 | 192.168.0.0 |
+      | snullnet1 | 192.168.1.0 |
+
+      /etc/hosts
+      |          ip | host    |
+      |-------------+---------|
+      | 192.168.0.1 | local0  |
+      | 192.168.0.2 | remote0 |
+      | 192.168.1.2 | local1  |
+      | 192.168.1.1 | remote1 |
+
+**** 网络驱动基本知识
+
+     - =struct net_device= 描述一个网络接口。头文件：
+       <linux/netdevice.h>
+       #+BEGIN_SRC c
+         struct net_device *alloc_netdev(int sizeof_priv,
+                                         const char *name,
+                                         void (*setup)(struct net_device *));
+       #+END_SRC
+     - 注册网络设备
+       #+BEGIN_SRC c
+         for (i = 0; i < 2; i++)
+           if ((result = register_netdev(snull_devs[i])))
+             printk("snull: error %i registering device \"%s\"\n",
+                    result, snull_devs[i]->name);
+       #+END_SRC
+     - netif_start_queue/netif_stop_queue 标记Driver是否可以传输数据包。
+       #+BEGIN_SRC c
+         /*
+           If you must disable packet transmission from anywhere other than your hard_start_xmit
+           function (in response to a reconfiguration request, perhaps), the function you want to
+           use is:
+         ,*/
+         void netif_tx_disable(struct net_device *dev);
+
+         /*
+           This function is just like netif_start_queue, except that it also pokes the networking
+         system to make it start transmitting packets again.
+         ,*/
+         void netif_wake_queue(struct net_device *dev);
+       #+END_SRC
+     - 数据传输与接收
+       当可以传输数据时，内核会调用 =ndo_start_transmit= 将数据放到队
+       列中。
+       #+BEGIN_SRC c
+         netif_rx(skb);//hand off the socket buffer to the upper layers.
+         netif_receive_skb(skb); //feed packets to the kernel, used in poll mode
+       #+END_SRC
+     - chagnes in link state
+
+       #+BEGIN_SRC c
+         void netif_carrier_off(struct net_device *dev);
+         void netif_carrier_on(struct net_device *dev);
+         int netif_carrier_ok(struct net_device *dev);
+       #+END_SRC
+     - ioctl
+
+       Any ioctl command that is not recognized by the protocol layer
+       is passed to the device layer. These device-related ioctl
+       commands accept a third argument from user space, a =struct
+       ifreq *= . 
+
+
+
 
 
 ** 引用
