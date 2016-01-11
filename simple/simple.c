@@ -31,15 +31,15 @@
 
 #include <linux/device.h>
 
-static int simple_major = 0;
-module_param(simple_major, int, 0);
+static int my_simple_major = 0;
+module_param(my_simple_major, int, 0);
 MODULE_AUTHOR("Jonathan Corbet");
 MODULE_LICENSE("Dual BSD/GPL");
 
 /*
  * Open the device; in fact, there's nothing to do here.
  */
-static int simple_open (struct inode *inode, struct file *filp)
+static int my_simple_open (struct inode *inode, struct file *filp)
 {
 	return 0;
 }
@@ -48,7 +48,7 @@ static int simple_open (struct inode *inode, struct file *filp)
 /*
  * Closing is just as simpler.
  */
-static int simple_release(struct inode *inode, struct file *filp)
+static int my_simple_release(struct inode *inode, struct file *filp)
 {
 	return 0;
 }
@@ -59,13 +59,13 @@ static int simple_release(struct inode *inode, struct file *filp)
  * Common VMA ops.
  */
 
-void simple_vma_open(struct vm_area_struct *vma)
+void my_simple_vma_open(struct vm_area_struct *vma)
 {
 	printk(KERN_NOTICE "Simple VMA open, virt %lx, phys %lx\n",
 			vma->vm_start, vma->vm_pgoff << PAGE_SHIFT);
 }
 
-void simple_vma_close(struct vm_area_struct *vma)
+void my_simple_vma_close(struct vm_area_struct *vma)
 {
 	printk(KERN_NOTICE "Simple VMA close.\n");
 }
@@ -76,20 +76,20 @@ void simple_vma_close(struct vm_area_struct *vma)
  * from drivers/char/mem.c.
  */
 
-static struct vm_operations_struct simple_remap_vm_ops = {
-	.open =  simple_vma_open,
-	.close = simple_vma_close,
+static struct vm_operations_struct my_simple_remap_vm_ops = {
+	.open =  my_simple_vma_open,
+	.close = my_simple_vma_close,
 };
 
-static int simple_remap_mmap(struct file *filp, struct vm_area_struct *vma)
+static int my_simple_remap_mmap(struct file *filp, struct vm_area_struct *vma)
 {
 	if (remap_pfn_range(vma, vma->vm_start, vma->vm_pgoff,
 			    vma->vm_end - vma->vm_start,
 			    vma->vm_page_prot))
 		return -EAGAIN;
 
-	vma->vm_ops = &simple_remap_vm_ops;
-	simple_vma_open(vma);
+	vma->vm_ops = &my_simple_remap_vm_ops;
+	my_simple_vma_open(vma);
 	return 0;
 }
 
@@ -98,7 +98,7 @@ static int simple_remap_mmap(struct file *filp, struct vm_area_struct *vma)
 /*
  * The nopage version.
  */
-static int simple_vma_nopage(struct vm_area_struct *vma, struct vm_fault *vmf)
+static int my_simple_vma_nopage(struct vm_area_struct *vma, struct vm_fault *vmf)
 {
 	struct page *pageptr;
 	unsigned long offset = vma->vm_pgoff << PAGE_SHIFT;
@@ -120,22 +120,23 @@ static int simple_vma_nopage(struct vm_area_struct *vma, struct vm_fault *vmf)
 	return 0;
 }
 
-static struct vm_operations_struct simple_nopage_vm_ops = {
-	.open =   simple_vma_open,
-	.close =  simple_vma_close,
-	.fault = simple_vma_nopage,
+static struct vm_operations_struct my_simple_nopage_vm_ops = {
+	.open =   my_simple_vma_open,
+	.close =  my_simple_vma_close,
+	.fault = my_simple_vma_nopage,
 };
 
-static int simple_nopage_mmap(struct file *filp, struct vm_area_struct *vma)
+static int my_simple_nopage_mmap(struct file *filp, struct vm_area_struct *vma)
 {
 	unsigned long offset = vma->vm_pgoff << PAGE_SHIFT;
 
 	if (offset >= __pa(high_memory) || (filp->f_flags & O_SYNC))
 		vma->vm_flags |= VM_IO;
-	vma->vm_flags |= VM_RESERVED;
+	vma->vm_flags |= VM_DONTDUMP;
+	vma->vm_flags |= VM_DONTEXPAND;
 
-	vma->vm_ops = &simple_nopage_vm_ops;
-	simple_vma_open(vma);
+	vma->vm_ops = &my_simple_nopage_vm_ops;
+	my_simple_vma_open(vma);
 	return 0;
 }
 
@@ -143,10 +144,10 @@ static int simple_nopage_mmap(struct file *filp, struct vm_area_struct *vma)
 /*
  * Set up the cdev structure for a device.
  */
-static void simple_setup_cdev(struct cdev *dev, int minor,
+static void my_simple_setup_cdev(struct cdev *dev, int minor,
 		struct file_operations *fops)
 {
-	int err, devno = MKDEV(simple_major, minor);
+	int err, devno = MKDEV(my_simple_major, minor);
     
 	cdev_init(dev, fops);
 	dev->owner = THIS_MODULE;
@@ -154,7 +155,7 @@ static void simple_setup_cdev(struct cdev *dev, int minor,
 	err = cdev_add (dev, devno, 1);
 	/* Fail gracefully if need be */
 	if (err)
-		printk (KERN_NOTICE "Error %d adding simple%d", err, minor);
+		printk (KERN_NOTICE "Error %d adding my_simple%d", err, minor);
 }
 
 
@@ -162,27 +163,27 @@ static void simple_setup_cdev(struct cdev *dev, int minor,
  * Our various sub-devices.
  */
 /* Device 0 uses remap_pfn_range */
-static struct file_operations simple_remap_ops = {
+static struct file_operations my_simple_remap_ops = {
 	.owner   = THIS_MODULE,
-	.open    = simple_open,
-	.release = simple_release,
-	.mmap    = simple_remap_mmap,
+	.open    = my_simple_open,
+	.release = my_simple_release,
+	.mmap    = my_simple_remap_mmap,
 };
 
 /* Device 1 uses nopage */
-static struct file_operations simple_nopage_ops = {
+static struct file_operations my_simple_nopage_ops = {
 	.owner   = THIS_MODULE,
-	.open    = simple_open,
-	.release = simple_release,
-	.mmap    = simple_nopage_mmap,
+	.open    = my_simple_open,
+	.release = my_simple_release,
+	.mmap    = my_simple_nopage_mmap,
 };
 
 #define MAX_SIMPLE_DEV 2
 
 #if 0
-static struct file_operations *simple_fops[MAX_SIMPLE_DEV] = {
-	&simple_remap_ops,
-	&simple_nopage_ops,
+static struct file_operations *my_simple_fops[MAX_SIMPLE_DEV] = {
+	&my_simple_remap_ops,
+	&my_simple_nopage_ops,
 };
 #endif
 
@@ -195,37 +196,37 @@ static struct cdev SimpleDevs[MAX_SIMPLE_DEV];
 /*
  * Module housekeeping.
  */
-static int simple_init(void)
+static int my_simple_init(void)
 {
 	int result;
-	dev_t dev = MKDEV(simple_major, 0);
+	dev_t dev = MKDEV(my_simple_major, 0);
 
 	/* Figure out our device number. */
-	if (simple_major)
-		result = register_chrdev_region(dev, 2, "simple");
+	if (my_simple_major)
+		result = register_chrdev_region(dev, 2, "my_simple");
 	else {
-		result = alloc_chrdev_region(&dev, 0, 2, "simple");
-		simple_major = MAJOR(dev);
+		result = alloc_chrdev_region(&dev, 0, 2, "my_simple");
+		my_simple_major = MAJOR(dev);
 	}
 	if (result < 0) {
-		printk(KERN_WARNING "simple: unable to get major %d\n", simple_major);
+		printk(KERN_WARNING "my_simple: unable to get major %d\n", my_simple_major);
 		return result;
 	}
 
 	/* Now set up two cdevs. */
-	simple_setup_cdev(SimpleDevs, 0, &simple_remap_ops);
-	simple_setup_cdev(SimpleDevs + 1, 1, &simple_nopage_ops);
+	my_simple_setup_cdev(SimpleDevs, 0, &my_simple_remap_ops);
+	my_simple_setup_cdev(SimpleDevs + 1, 1, &my_simple_nopage_ops);
 	return 0;
 }
 
 
-static void simple_cleanup(void)
+static void my_simple_cleanup(void)
 {
 	cdev_del(SimpleDevs);
 	cdev_del(SimpleDevs + 1);
-	unregister_chrdev_region(MKDEV(simple_major, 0), 2);
+	unregister_chrdev_region(MKDEV(my_simple_major, 0), 2);
 }
 
 
-module_init(simple_init);
-module_exit(simple_cleanup);
+module_init(my_simple_init);
+module_exit(my_simple_cleanup);

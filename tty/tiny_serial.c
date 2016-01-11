@@ -109,9 +109,9 @@ static void tiny_timer(unsigned long data)
 
 	/* add one character to the tty port */
 	/* this doesn't actually push the data through unless tty->low_latency is set */
-	tty_insert_flip_char(tty, TINY_DATA_CHARACTER, 0);
+	tty_insert_flip_char(tty->port, TINY_DATA_CHARACTER, 0);
 
-	tty_flip_buffer_push(tty);
+	tty_flip_buffer_push(tty->port);
 
 	/* resubmit the timer again */
 	timer->expires = jiffies + DELAY_TIME;

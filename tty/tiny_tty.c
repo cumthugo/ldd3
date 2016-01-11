@@ -77,11 +77,11 @@ static void tiny_timer(unsigned long timer_data)
 	/* send the data to the tty layer for users to read.  This doesn't
 	 * actually push the data through unless tty->low_latency is set */
 	for (i = 0; i < data_size; ++i) {
-		if (!tty_buffer_request_room(tty, 1))
-			tty_flip_buffer_push(tty);
-		tty_insert_flip_char(tty, data[i], TTY_NORMAL);
+		if (!tty_buffer_request_room(tty->port, 1))
+			tty_flip_buffer_push(tty->port);
+		tty_insert_flip_char(tty->port, data[i], TTY_NORMAL);
 	}
-	tty_flip_buffer_push(tty);
+	tty_flip_buffer_push(tty->port);
 
 	/* resubmit the timer again */
 	tiny->timer->expires = jiffies + DELAY_TIME;
@@ -230,12 +230,12 @@ static void tiny_set_termios(struct tty_struct *tty, struct ktermios *old_termio
 {
 	unsigned int cflag;
 
-	cflag = tty->termios->c_cflag;
+	cflag = tty->termios.c_cflag;
 
 	/* check that they really want us to change something */
 	if (old_termios) {
 		if ((cflag == old_termios->c_cflag) &&
-		    (RELEVANT_IFLAG(tty->termios->c_iflag) == 
+		    (RELEVANT_IFLAG(tty->termios.c_iflag) == 
 		     RELEVANT_IFLAG(old_termios->c_iflag))) {
 			printk(KERN_DEBUG " - nothing to change...\n");
 			return;
