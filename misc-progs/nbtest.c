@@ -34,7 +34,12 @@ int main(int argc, char **argv)
 	while (1) {
 		n = read(0, buffer, 4096);
 		if (n >= 0)
+        {
+            printf("prepare to write, n=%d\n",n);
 			m = write(1, buffer, n);
+        }
+        else
+            printf("no need to write, n=%d\n",n);
 		if ((n < 0 || m < 0) && (errno != EAGAIN))
 			break;
 		sleep(delay);
