@@ -106,7 +106,9 @@ static int scull_p_release(struct inode *inode, struct file *filp)
 		dev->nwriters--;
 	if (dev->nreaders + dev->nwriters == 0) {
 		kfree(dev->buffer);
-		dev->buffer = NULL; /* the other fields are not checked on open */
+		dev->buffer = dev->end = NULL; /* the other fields are not checked on open */
+		dev->rp = dev->wp = NULL; /* we set all point to NULL */
+		dev->buffersize = 0;
 	}
 	up(&dev->sem);
 	return 0;

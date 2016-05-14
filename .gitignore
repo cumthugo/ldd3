@@ -7,3 +7,7 @@
 *.ko
 Module.symvers
 modules.order
+misc-progs/
+!misc-progs/Makefile
+!misc-progs/*.c
+!misc-progs/*.h
