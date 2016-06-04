@@ -57,6 +57,8 @@ module_param(short_major, int, 0);
 static int use_mem = 0;	/* default is I/O-mapped */
 module_param(use_mem, int, 0);
 
+static int use_ioport_map = 1;
+
 /* default is the first printer port on PC's. "short_base" is there too
    because it's what we want to use in the code */
 static unsigned long base = 0x378;
@@ -100,6 +102,7 @@ static inline void short_incr_bp(volatile unsigned long *index, int delta)
 {
 	unsigned long new = *index + delta;
 	barrier();  /* Don't optimize these two together */
+	printk(KERN_INFO "[Zhang Yong] func: %s, line: %d  \n",__FUNCTION__,__LINE__);
 	*index = (new >= (short_buffer + PAGE_SIZE)) ? short_buffer : new;
 }
 
@@ -120,12 +123,14 @@ int short_open (struct inode *inode, struct file *filp)
 
 	if (iminor (inode) & 0x80)
 		filp->f_op = &short_i_fops; /* the interrupt-driven node */
+	printk(KERN_INFO "[Zhang Yong] func: %s, line: %d  \n",__FUNCTION__,__LINE__);
 	return 0;
 }
 
 
 int short_release (struct inode *inode, struct file *filp)
 {
+	printk(KERN_INFO "[Zhang Yong] func: %s, line: %d  \n",__FUNCTION__,__LINE__);
 	return 0;
 }
 
@@ -148,7 +153,7 @@ ssize_t do_short_read (struct inode *inode, struct file *filp, char __user *buf,
 		return -ENOMEM;
 	ptr = kbuf;
 
-	if (use_mem)
+	if (use_mem || use_ioport_map)
 		mode = SHORT_MEMORY;
 	
 	switch(mode) {
@@ -184,6 +189,7 @@ ssize_t do_short_read (struct inode *inode, struct file *filp, char __user *buf,
 	if ((retval > 0) && copy_to_user(buf, kbuf, retval))
 		retval = -EFAULT;
 	kfree(kbuf);
+	printk(KERN_INFO "[Zhang Yong] func: %s, line: %d  \n",__FUNCTION__,__LINE__);
 	return retval;
 }
 
@@ -193,10 +199,9 @@ ssize_t do_short_read (struct inode *inode, struct file *filp, char __user *buf,
  */
 ssize_t short_read(struct file *filp, char __user *buf, size_t count, loff_t *f_pos)
 {
+	printk(KERN_INFO "[Zhang Yong] func: %s, line: %d  \n",__FUNCTION__,__LINE__);
 	return do_short_read(filp->f_dentry->d_inode, filp, buf, count, f_pos);
 }
-
-
 
 ssize_t do_short_write (struct inode *inode, struct file *filp, const char __user *buf,
 		size_t count, loff_t *f_pos)
@@ -213,11 +218,12 @@ ssize_t do_short_write (struct inode *inode, struct file *filp, const char __use
 		return -EFAULT;
 	ptr = kbuf;
 
-	if (use_mem)
+	if (use_mem || use_ioport_map)
 		mode = SHORT_MEMORY;
 
 	switch(mode) {
 	case SHORT_PAUSE:
+		printk(KERN_INFO "[Zhang Yong] func: %s, line: %d  mode is SHORT_PAUSE\n",__FUNCTION__,__LINE__);
 		while (count--) {
 			outb_p(*(ptr++), port);
 			wmb();
@@ -225,11 +231,13 @@ ssize_t do_short_write (struct inode *inode, struct file *filp, const char __use
 		break;
 
 	case SHORT_STRING:
+		printk(KERN_INFO "[Zhang Yong] func: %s, line: %d  mode is SHORT_STRING\n",__FUNCTION__,__LINE__);
 		outsb(port, ptr, count);
 		wmb();
 		break;
 
 	case SHORT_DEFAULT:
+		printk(KERN_INFO "[Zhang Yong] func: %s, line: %d  mode is SHORT_DEFAULT\n",__FUNCTION__,__LINE__);
 		while (count--) {
 			outb(*(ptr++), port);
 			wmb();
@@ -237,6 +245,7 @@ ssize_t do_short_write (struct inode *inode, struct file *filp, const char __use
 		break;
 
 	case SHORT_MEMORY:
+		printk(KERN_INFO "[Zhang Yong] func: %s, line: %d  mode is SHORT_MEMORY\n",__FUNCTION__,__LINE__);
 		while (count--) {
 			iowrite8(*ptr++, address);
 			wmb();
@@ -248,6 +257,7 @@ ssize_t do_short_write (struct inode *inode, struct file *filp, const char __use
 		break;
 	}
 	kfree(kbuf);
+	printk(KERN_INFO "[Zhang Yong] func: %s, line: %d  \n",__FUNCTION__,__LINE__);
 	return retval;
 }
 
@@ -255,21 +265,15 @@ ssize_t do_short_write (struct inode *inode, struct file *filp, const char __use
 ssize_t short_write(struct file *filp, const char __user *buf, size_t count,
 		loff_t *f_pos)
 {
+	printk(KERN_INFO "[Zhang Yong] func: %s, line: %d  \n",__FUNCTION__,__LINE__);
 	return do_short_write(filp->f_dentry->d_inode, filp, buf, count, f_pos);
 }
 
-
-
-
 unsigned int short_poll(struct file *filp, poll_table *wait)
 {
+	printk(KERN_INFO "[Zhang Yong] func: %s, line: %d  \n",__FUNCTION__,__LINE__);
 	return POLLIN | POLLRDNORM | POLLOUT | POLLWRNORM;
 }
-
-
-
-
-
 
 struct file_operations short_fops = {
 	.owner	 = THIS_MODULE,
@@ -304,6 +308,7 @@ ssize_t short_i_read (struct file *filp, char __user *buf, size_t count, loff_t 
 	if (copy_to_user(buf, (char *)short_tail, count))
 		return -EFAULT;
 	short_incr_bp (&short_tail, count);
+	printk(KERN_INFO "[Zhang Yong] func: %s, line: %d  \n",__FUNCTION__,__LINE__);
 	return count;
 }
 
@@ -314,7 +319,7 @@ ssize_t short_i_write (struct file *filp, const char __user *buf, size_t count,
 	unsigned long port = short_base; /* output to the parallel data latch */
 	void *address = (void *) short_base;
 
-	if (use_mem) {
+	if (use_mem || use_ioport_map) {
 		while (written < count)
 			iowrite8(0xff * ((++written + odd) & 1), address);
 	} else {
@@ -323,6 +328,7 @@ ssize_t short_i_write (struct file *filp, const char __user *buf, size_t count,
 	}
 
 	*f_pos += count;
+	printk(KERN_INFO "[Zhang Yong] func: %s, line: %d  \n",__FUNCTION__,__LINE__);
 	return written;
 }
 
@@ -350,6 +356,7 @@ irqreturn_t short_interrupt(int irq, void *dev_id)
 	BUG_ON(written != 16);
 	short_incr_bp(&short_head, written);
 	wake_up_interruptible(&short_queue); /* awake any reading process */
+	printk(KERN_INFO "[Zhang Yong] func: %s, line: %d  \n",__FUNCTION__,__LINE__);
 	return IRQ_HANDLED;
 }
 
@@ -410,6 +417,7 @@ void short_do_tasklet (unsigned long unused)
 		short_incr_tv(&tv_tail);
 	} while (tv_tail != tv_head);
 
+	printk(KERN_INFO "[Zhang Yong] func: %s, line: %d  \n",__FUNCTION__,__LINE__);
 	wake_up_interruptible(&short_queue); /* awake any reading process */
 }
 
@@ -424,6 +432,7 @@ irqreturn_t short_wq_interrupt(int irq, void *dev_id)
 	schedule_work(&short_wq);
 
 	short_wq_count++; /* record that an interrupt arrived */
+	printk(KERN_INFO "[Zhang Yong] func: %s, line: %d  \n",__FUNCTION__,__LINE__);
 	return IRQ_HANDLED;
 }
 
@@ -438,6 +447,7 @@ irqreturn_t short_tl_interrupt(int irq, void *dev_id)
 	short_incr_tv(&tv_head);
 	tasklet_schedule(&short_tasklet);
 	short_wq_count++; /* record that an interrupt arrived */
+	printk(KERN_INFO "[Zhang Yong] func: %s, line: %d  \n",__FUNCTION__,__LINE__);
 	return IRQ_HANDLED;
 }
 
@@ -464,6 +474,7 @@ irqreturn_t short_sh_interrupt(int irq, void *dev_id)
 			(int)(tv.tv_sec % 100000000), (int)(tv.tv_usec));
 	short_incr_bp(&short_head, written);
 	wake_up_interruptible(&short_queue); /* awake any reading process */
+	printk(KERN_INFO "[Zhang Yong] func: %s, line: %d  \n",__FUNCTION__,__LINE__);
 	return IRQ_HANDLED;
 }
 
@@ -494,12 +505,14 @@ void short_kernelprobe(void)
 	} while (short_irq < 0 && count++ < 5);
 	if (short_irq < 0)
 		printk("short: probe failed %i times, giving up\n", count);
+	printk(KERN_INFO "[Zhang Yong] func: %s, line: %d  \n",__FUNCTION__,__LINE__);
 }
 
 irqreturn_t short_probing(int irq, void *dev_id)
 {
 	if (short_irq == 0) short_irq = irq;	/* found */
 	if (short_irq != irq) short_irq = -irq; /* ambiguous */
+	printk(KERN_INFO "[Zhang Yong] func: %s, line: %d  \n",__FUNCTION__,__LINE__);
 	return IRQ_HANDLED;
 }
 
@@ -543,6 +556,7 @@ void short_selfprobe(void)
 			free_irq(trials[i], NULL);
 
 	if (short_irq < 0)
+	printk(KERN_INFO "[Zhang Yong] func: %s, line: %d  \n",__FUNCTION__,__LINE__);
 		printk("short: probe failed %i times, giving up\n", count);
 }
 
@@ -553,6 +567,7 @@ int short_init(void)
 	int result;
 	dev_t dev = MKDEV(short_major, 0);
 
+	printk(KERN_INFO "[Zhang Yong] func: %s, line: %d  \n",__FUNCTION__,__LINE__);
 	/* Figure out our device number. */
 	if (short_major)
 		result = register_chrdev_region(dev, 1, "short");
@@ -575,14 +590,19 @@ int short_init(void)
 
 	/* Get our needed resources. */
 	if (!use_mem) {
+		printk(KERN_INFO "[Zhang Yong] line: %d  not use mem\n",__LINE__);
 		if (! request_region(short_base, SHORT_NR_PORTS, "short")) {
 			printk(KERN_INFO "short: can't get I/O port address 0x%lx\n",
 					short_base);
 		unregister_chrdev_region(MKDEV(short_major, 0), 1);
 			return -ENODEV;
 		}
-
+		if (use_ioport_map) {
+			short_base =(unsigned long) ioport_map(short_base, SHORT_NR_PORTS);
+			printk(KERN_INFO"[Zhang Yong] short_base after ioport_map is 0x%lx",short_base);
+		}
 	} else {
+		printk(KERN_INFO "[Zhang Yong] line: %d  use mem\n",__LINE__);
 		if (! request_mem_region(short_base, SHORT_NR_PORTS, "short")) {
 			printk(KERN_INFO "short: can't get I/O mem address 0x%lx\n",
 					short_base);
@@ -624,12 +644,19 @@ int short_init(void)
 	 */
 
 	if (short_irq < 0 && probe == 1)
+	{
+		printk(KERN_INFO "[Zhang Yong] line: %d  proble == 1\n",__LINE__);
 		short_kernelprobe();
+	}
 
 	if (short_irq < 0 && probe == 2)
+	{
+		printk(KERN_INFO "[Zhang Yong] line: %d  proble == 2\n",__LINE__);
 		short_selfprobe();
+	}
 
 	if (short_irq < 0) /* not yet specified: force the default on */
+		printk(KERN_INFO "[Zhang Yong] line: %d  short_irq < 0, set short_irq\n",__LINE__);
 		switch(short_base) {
 		    case 0x378: short_irq = 7; break;
 		    case 0x278: short_irq = 2; break;
@@ -641,7 +668,8 @@ int short_init(void)
 	 * instead of the normal one. Do it first, before a -EBUSY will
 	 * force short_irq to -1.
 	 */
-	if (short_irq >= 0 && share > 0) {
+	if (short_irq >= 0 && share > 0) { /* [Zhang Yong] this is not executed */
+		printk(KERN_INFO "[Zhang Yong] line: %d short_irq = %d, share = %d \n",__LINE__,short_irq,share);
 		result = request_irq(short_irq, short_sh_interrupt,
 				IRQF_SHARED | IRQF_DISABLED,"short",
 				short_sh_interrupt);
@@ -656,6 +684,7 @@ int short_init(void)
 	}
 
 	if (short_irq >= 0) {
+		printk(KERN_INFO "[Zhang Yong] line: %d  short_irq = %d \n",__LINE__,short_irq);
 		result = request_irq(short_irq, short_interrupt,
 				IRQF_DISABLED, "short", NULL);
 		if (result) {
@@ -673,6 +702,7 @@ int short_init(void)
 	 * has been requested
 	 */
 	if (short_irq >= 0 && (wq + tasklet) > 0) {
+		printk(KERN_INFO "[Zhang Yong] line: %d  (wq + tasklet) >  0 \n",__LINE__);
 		free_irq(short_irq,NULL);
 		result = request_irq(short_irq,
 				tasklet ? short_tl_interrupt :
@@ -685,6 +715,7 @@ int short_init(void)
 		}
 	}
 
+	printk(KERN_INFO "[Zhang Yong] func: %s, line: %d  \n",__FUNCTION__,__LINE__);
 	return 0;
 }
 
@@ -704,10 +735,15 @@ void short_cleanup(void)
 	unregister_chrdev_region(MKDEV(short_major, 0), 1);
 	if (use_mem) {
 		iounmap((void __iomem *)short_base);
-		release_mem_region(short_base, SHORT_NR_PORTS);
+		release_mem_region(base, SHORT_NR_PORTS);
+	}
+	else if (use_ioport_map) {
+		ioport_unmap((void*)short_base);
+		release_region(base,SHORT_NR_PORTS); /* the address should be base, because short_base have been modified in "use mem" mode */
 	} else {
 		release_region(short_base,SHORT_NR_PORTS);
 	}
+	printk(KERN_INFO "[Zhang Yong] func: %s, line: %d  \n",__FUNCTION__,__LINE__);
 	if (short_buffer) free_page(short_buffer);
 }
 
